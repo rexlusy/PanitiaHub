@@ -264,7 +264,7 @@ fun ContactListScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Contact Items List
+            // Contact Items List with Section Grouping
             if (filteredContacts.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -287,17 +287,108 @@ fun ContactListScreen(
                     contentPadding = PaddingValues(bottom = 80.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(
-                        items = filteredContacts,
-                        key = { it.id }
-                    ) { contact ->
-                        ContactCardItem(
-                            contact = contact,
-                            onClick = { onContactClick(contact) }
-                        )
+                    when (selectedCategory) {
+                        "Panitia Pelaksana" -> {
+                            val groupedByDivision = filteredContacts.groupBy { it.division ?: "Divisi Umum" }
+                            groupedByDivision.forEach { (divisionName, divisionMembers) ->
+                                item(key = "header_div_$divisionName") {
+                                    SectionHeader(
+                                        title = divisionName,
+                                        count = divisionMembers.size,
+                                        badgeLabel = "Panitia"
+                                    )
+                                }
+                                items(
+                                    items = divisionMembers,
+                                    key = { it.id }
+                                ) { contact ->
+                                    ContactCardItem(
+                                        contact = contact,
+                                        onClick = { onContactClick(contact) }
+                                    )
+                                }
+                            }
+                        }
+                        "Semua" -> {
+                            val groupedByCategory = filteredContacts.groupBy { it.contactType }
+                            groupedByCategory.forEach { (categoryName, categoryMembers) ->
+                                item(key = "header_cat_$categoryName") {
+                                    SectionHeader(
+                                        title = categoryName,
+                                        count = categoryMembers.size,
+                                        badgeLabel = "Orang"
+                                    )
+                                }
+                                items(
+                                    items = categoryMembers,
+                                    key = { it.id }
+                                ) { contact ->
+                                    ContactCardItem(
+                                        contact = contact,
+                                        onClick = { onContactClick(contact) }
+                                    )
+                                }
+                            }
+                        }
+                        else -> {
+                            items(
+                                items = filteredContacts,
+                                key = { it.id }
+                            ) { contact ->
+                                ContactCardItem(
+                                    contact = contact,
+                                    onClick = { onContactClick(contact) }
+                                )
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    count: Int,
+    badgeLabel: String = "Panitia",
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 16.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(PrimaryBlue)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(PrimaryBlueLight)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "$count $badgeLabel",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PrimaryBlue
+            )
         }
     }
 }
