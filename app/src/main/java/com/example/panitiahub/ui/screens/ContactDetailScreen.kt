@@ -17,10 +17,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Business
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.WorkOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -31,9 +35,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +55,8 @@ import androidx.compose.ui.unit.sp
 import com.example.panitiahub.data.ContactItem
 import com.example.panitiahub.data.SampleContactData
 import com.example.panitiahub.ui.theme.AppBackground
+import com.example.panitiahub.ui.theme.BadgeGreenBg
+import com.example.panitiahub.ui.theme.BadgeGreenText
 import com.example.panitiahub.ui.theme.BadgeOrangeBg
 import com.example.panitiahub.ui.theme.BadgeOrangeText
 import com.example.panitiahub.ui.theme.CardBackground
@@ -60,8 +71,63 @@ import com.example.panitiahub.ui.theme.TextSecondary
 fun ContactDetailScreen(
     contact: ContactItem,
     onBackClick: () -> Unit,
+    onEditClick: (ContactItem) -> Unit = {},
+    onDeleteClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    val isPanitia = contact.contactType == "Panitia Pelaksana"
+    val badgeBg = when (contact.contactType) {
+        "Panitia Pelaksana" -> PrimaryBlueLight
+        "Narasumber" -> BadgeGreenBg
+        "Juri" -> Color(0xFFEDF2FE)
+        else -> BadgeOrangeBg
+    }
+    val badgeText = when (contact.contactType) {
+        "Panitia Pelaksana" -> PrimaryBlue
+        "Narasumber" -> BadgeGreenText
+        "Juri" -> Color(0xFF3B82F6)
+        else -> BadgeOrangeText
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = {
+                Text(
+                    text = "Hapus Kontak?",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Apakah Anda yakin ingin menghapus ${contact.name} dari daftar kontak acara? Tindakan ini tidak dapat dibatalkan.",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteClick(contact.id)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Hapus", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = AppBackground,
@@ -69,7 +135,7 @@ fun ContactDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Detail Profil Panitia",
+                        text = "Detail Kontak",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -81,6 +147,22 @@ fun ContactDetailScreen(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = "Kembali",
                             tint = TextPrimary
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { onEditClick(contact) }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = "Edit Kontak",
+                            tint = PrimaryBlue
+                        )
+                    }
+                    IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Hapus Kontak",
+                            tint = Color(0xFFEF4444)
                         )
                     }
                 },
@@ -105,13 +187,13 @@ fun ContactDetailScreen(
                 modifier = Modifier
                     .size(90.dp)
                     .clip(CircleShape)
-                    .background(if (contact.isVip) BadgeOrangeBg else PrimaryBlueLight),
+                    .background(badgeBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Person,
                     contentDescription = contact.name,
-                    tint = if (contact.isVip) BadgeOrangeText else PrimaryBlue,
+                    tint = badgeText,
                     modifier = Modifier.size(48.dp)
                 )
             }
@@ -125,10 +207,31 @@ fun ContactDetailScreen(
                 color = TextPrimary
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Badge Kategori Utama
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(badgeBg)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = contact.contactType,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = badgeText
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "${contact.division} · ${contact.role}",
+                text = if (isPanitia) {
+                    "${contact.division ?: ""} • ${contact.role}"
+                } else {
+                    "${contact.role} ${if (!contact.institution.isNullOrBlank()) "(${contact.institution})" else ""}"
+                },
                 fontSize = 14.sp,
                 color = TextSecondary
             )
@@ -157,17 +260,43 @@ fun ContactDetailScreen(
 
                     ContactDetailRow(
                         icon = Icons.Outlined.Email,
-                        label = "Email Panitia",
+                        label = "Email Kontak",
                         value = contact.email
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    ContactDetailRow(
-                        icon = Icons.Outlined.WorkOutline,
-                        label = "Divisi & Tanggung Jawab",
-                        value = "${contact.division} (${contact.role})"
-                    )
+                    if (isPanitia) {
+                        ContactDetailRow(
+                            icon = Icons.Outlined.WorkOutline,
+                            label = "Divisi Kepanitiaan",
+                            value = contact.division ?: "-"
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        ContactDetailRow(
+                            icon = Icons.Outlined.Person,
+                            label = "Jabatan / Role",
+                            value = contact.role
+                        )
+                    } else {
+                        if (!contact.institution.isNullOrBlank()) {
+                            ContactDetailRow(
+                                icon = Icons.Outlined.Business,
+                                label = "Asal Institusi / Perusahaan",
+                                value = contact.institution
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        ContactDetailRow(
+                            icon = Icons.Outlined.WorkOutline,
+                            label = "Tugas / Peran Acara",
+                            value = contact.role
+                        )
+                    }
                 }
             }
 
@@ -193,7 +322,7 @@ fun ContactDetailScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedButton(
-                onClick = onBackClick,
+                onClick = { onEditClick(contact) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -201,7 +330,25 @@ fun ContactDetailScreen(
                 border = androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryBlue),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryBlue)
             ) {
-                Text(text = "Kembali ke Daftar Kontak", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Icon(imageVector = Icons.Outlined.Edit, contentDescription = "Edit")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Edit Data Kontak", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = { showDeleteConfirmDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFEF4444)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+            ) {
+                Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Hapus")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Hapus Kontak Ini", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
 
             Spacer(modifier = Modifier.height(24.dp))

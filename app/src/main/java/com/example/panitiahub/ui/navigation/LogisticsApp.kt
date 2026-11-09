@@ -1,15 +1,19 @@
 package com.example.panitiahub.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.panitiahub.data.ContactItem
+import com.example.panitiahub.data.ExpenseItem
 import com.example.panitiahub.data.SampleContactData
 import com.example.panitiahub.data.SampleData
 import com.example.panitiahub.data.SampleExpenseData
@@ -35,6 +39,7 @@ import com.example.panitiahub.ui.screens.RegisterScreen
 import com.example.panitiahub.ui.screens.TaskDetailScreen
 import com.example.panitiahub.ui.screens.TaskFormScreen
 import com.example.panitiahub.ui.screens.TaskListScreen
+import com.example.panitiahub.ui.viewmodel.ContactViewModel
 
 sealed class Screen(val route: String) {
     // Auth & Onboarding flow
@@ -86,13 +91,18 @@ sealed class Screen(val route: String) {
 fun LogisticsApp() {
     val navController = rememberNavController()
 
-    var contactList by remember { mutableStateOf(SampleContactData.initialContacts) }
+    // Modul 1: Contact ViewModel backed by Supabase
+    val contactViewModel: ContactViewModel = viewModel()
+    val contactList by contactViewModel.contacts.collectAsState()
+    val isContactLoading by contactViewModel.isLoading.collectAsState()
+    var selectedContactToEdit by remember { mutableStateOf<ContactItem?>(null) }
+
     var itemsList by remember { mutableStateOf(SampleData.initialItems) }
     var expenseList by remember { mutableStateOf(SampleExpenseData.initialExpenses) }
     var taskList by remember { mutableStateOf(SampleTaskData.initialTasks) }
     var noticeList by remember { mutableStateOf(SampleNoticeData.initialNotices) }
 
-    var selectedExpenseToEdit by remember { mutableStateOf<com.example.panitiahub.data.ExpenseItem?>(null) }
+    var selectedExpenseToEdit by remember { mutableStateOf<ExpenseItem?>(null) }
 
     NavHost(
         navController = navController,
@@ -171,10 +181,13 @@ fun LogisticsApp() {
         composable(Screen.ContactList.route) {
             ContactListScreen(
                 contacts = contactList,
+                isLoading = isContactLoading,
+                onRefresh = { contactViewModel.loadContacts() },
                 onContactClick = { contact ->
                     navController.navigate(Screen.ContactDetail.createRoute(contact.id))
                 },
                 onAddContactClick = {
+                    selectedContactToEdit = null
                     navController.navigate(Screen.ContactForm.route)
                 },
                 onNavigateRoute = { route -> navigateBottomBar(navController, route) }
@@ -190,16 +203,46 @@ fun LogisticsApp() {
 
             ContactDetailScreen(
                 contact = contact,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onEditClick = { contactItem ->
+                    selectedContactToEdit = contactItem
+                    navController.navigate(Screen.ContactForm.route)
+                },
+                onDeleteClick = { idToDelete ->
+                    contactViewModel.deleteContact(idToDelete) {
+                        navController.popBackStack()
+                    }
+                }
             )
         }
 
         composable(Screen.ContactForm.route) {
+            val existingDivisions = contactList
+                .filter { it.contactType == "Panitia Pelaksana" }
+                .mapNotNull { it.division }
+                .filter { it.isNotBlank() }
+                .distinct()
+
             ContactFormScreen(
-                onBackClick = { navController.popBackStack() },
-                onSubmit = { newContact ->
-                    contactList = listOf(newContact) + contactList
+                onBackClick = {
+                    selectedContactToEdit = null
                     navController.popBackStack()
+                },
+                contactToEdit = selectedContactToEdit,
+                existingDivisions = existingDivisions.ifEmpty {
+                    listOf("Sie Acara", "Sie Perlengkapan", "Sie Keamanan", "Sie Konsumsi", "Sie Humas")
+                },
+                onSubmit = { savedContact ->
+                    if (selectedContactToEdit != null) {
+                        contactViewModel.updateContact(savedContact) {
+                            selectedContactToEdit = null
+                            navController.popBackStack()
+                        }
+                    } else {
+                        contactViewModel.addContact(savedContact) {
+                            navController.popBackStack()
+                        }
+                    }
                 }
             )
         }
@@ -295,7 +338,10 @@ fun LogisticsApp() {
         composable(Screen.ExpenseForm.route) {
             ExpenseFormScreen(
                 initialItem = selectedExpenseToEdit,
-                onBackClick = { navController.popBackStack() },
+                onBackClick = {
+                    selectedExpenseToEdit = null
+                    navController.popBackStack()
+                },
                 onSubmit = { savedExpense ->
                     val existingIndex = expenseList.indexOfFirst { it.id == savedExpense.id }
                     expenseList = if (existingIndex >= 0) {
@@ -351,8 +397,24 @@ fun LogisticsApp() {
         }
 
         composable(Screen.TaskForm.route) {
+            val committeeMembers = contactList
+                .filter { it.contactType == "Panitia Pelaksana" }
+                .map { it.name }
+                .distinct()
+            val committeeDivisions = contactList
+                .filter { it.contactType == "Panitia Pelaksana" }
+                .mapNotNull { it.division }
+                .filter { it.isNotBlank() }
+                .distinct()
+
             TaskFormScreen(
                 onBackClick = { navController.popBackStack() },
+                availableCommitteeMembers = committeeMembers.ifEmpty {
+                    listOf("Dimas Aditya", "Nadia Putri", "Hania Putri", "Rizky Ramadhan")
+                },
+                availableDivisions = committeeDivisions.ifEmpty {
+                    listOf("Sie Acara", "Sie Perlengkapan", "Sie Keamanan", "Sie Konsumsi", "Sie Humas")
+                },
                 onSubmit = { newTask ->
                     taskList = listOf(newTask) + taskList
                     navController.popBackStack()

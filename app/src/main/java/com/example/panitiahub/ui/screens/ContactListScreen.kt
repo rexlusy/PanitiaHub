@@ -21,13 +21,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,8 +53,11 @@ import com.example.panitiahub.data.ContactItem
 import com.example.panitiahub.data.SampleContactData
 import com.example.panitiahub.ui.components.AppBottomNavigationBar
 import com.example.panitiahub.ui.theme.AppBackground
+import com.example.panitiahub.ui.theme.BadgeGreenBg
+import com.example.panitiahub.ui.theme.BadgeGreenText
 import com.example.panitiahub.ui.theme.BadgeOrangeBg
 import com.example.panitiahub.ui.theme.BadgeOrangeText
+import com.example.panitiahub.ui.theme.BorderGray
 import com.example.panitiahub.ui.theme.CardBackground
 import com.example.panitiahub.ui.theme.PanitiaHubTheme
 import com.example.panitiahub.ui.theme.PrimaryBlue
@@ -64,16 +73,45 @@ fun ContactListScreen(
     onContactClick: (ContactItem) -> Unit,
     onAddContactClick: () -> Unit,
     onNavigateRoute: (String) -> Unit,
+    isLoading: Boolean = false,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var selectedDivision by remember { mutableStateOf("Semua") }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("Semua") }
+    var selectedDivision by remember { mutableStateOf("Semua Divisi") }
 
-    val divisions = listOf("Semua", "Sie Acara", "Sie Perlengkapan", "Sie Keamanan", "Tamu VIP")
+    val categories = listOf("Semua", "Panitia Pelaksana", "Narasumber", "Juri", "Vendor")
 
-    val filteredContacts = if (selectedDivision == "Semua") {
-        contacts
-    } else {
-        contacts.filter { it.division.equals(selectedDivision, ignoreCase = true) }
+    // Ambil daftar divisi dinamis dari panitia yang ada
+    val availableDivisions = listOf("Semua Divisi") + contacts
+        .filter { it.contactType == "Panitia Pelaksana" }
+        .mapNotNull { it.division }
+        .filter { it.isNotBlank() }
+        .distinct()
+
+    val filteredContacts = contacts.filter { contact ->
+        val matchesCategory = when (selectedCategory) {
+            "Semua" -> true
+            else -> contact.contactType.equals(selectedCategory, ignoreCase = true)
+        }
+
+        val matchesDivision = if (selectedCategory == "Panitia Pelaksana" && selectedDivision != "Semua Divisi") {
+            contact.division.equals(selectedDivision, ignoreCase = true)
+        } else {
+            true
+        }
+
+        val matchesSearch = if (searchQuery.isBlank()) {
+            true
+        } else {
+            contact.name.contains(searchQuery, ignoreCase = true) ||
+            contact.role.contains(searchQuery, ignoreCase = true) ||
+            (contact.division?.contains(searchQuery, ignoreCase = true) == true) ||
+            (contact.institution?.contains(searchQuery, ignoreCase = true) == true)
+        }
+
+        matchesCategory && matchesDivision && matchesSearch
     }
 
     Scaffold(
@@ -95,7 +133,7 @@ fun ContactListScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Tambah Kontak Panitia",
+                    contentDescription = "Tambah Kontak",
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -109,62 +147,155 @@ fun ContactListScreen(
         ) {
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Header Title
-            Text(
-                text = "Direktori Panitia & Tamu",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Kenali orang di balik acara.",
-                fontSize = 14.sp,
-                color = TextSecondary
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Filter Chips Row
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Header Title with Refresh Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(divisions) { div ->
-                    val isSelected = div == selectedDivision
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Direktori Kontak Acara",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Kelola panitia, narasumber, juri, dan vendor",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                }
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Muat Ulang",
+                        tint = PrimaryBlue
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Search Bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Cari nama, divisi, instansi, atau role...", fontSize = 13.sp, color = TextSecondary) },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Outlined.Search, contentDescription = "Cari", tint = TextSecondary)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = CardBackground,
+                    unfocusedContainerColor = CardBackground,
+                    focusedBorderColor = PrimaryBlue,
+                    unfocusedBorderColor = BorderGray
+                ),
+                singleLine = true
+            )
+
+            if (isLoading) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = PrimaryBlue,
+                    trackColor = PrimaryBlueLight
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Level 1: Category Filter Chips
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(categories) { cat ->
+                    val isSelected = cat == selectedCategory
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(if (isSelected) PrimaryBlue else UnselectedTabBg)
-                            .clickable { selectedDivision = div }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .clickable {
+                                selectedCategory = cat
+                                selectedDivision = "Semua Divisi"
+                            }
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
                     ) {
                         Text(
-                            text = div,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
+                            text = cat,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = if (isSelected) Color.White else UnselectedTabText
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // Level 2: Sub-filter Divisi (Khusus jika Panitia Pelaksana aktif)
+            if (selectedCategory == "Panitia Pelaksana" && availableDivisions.size > 1) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(availableDivisions) { div ->
+                        val isSelected = div == selectedDivision
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) PrimaryBlue.copy(alpha = 0.15f) else Color.Transparent)
+                                .clickable { selectedDivision = div }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = div,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) PrimaryBlue else TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Contact Items List
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(
-                    items = filteredContacts,
-                    key = { it.id }
-                ) { contact ->
-                    ContactCardItem(
-                        contact = contact,
-                        onClick = { onContactClick(contact) }
-                    )
+            if (filteredContacts.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(color = PrimaryBlue)
+                    } else {
+                        Text(
+                            text = "Tidak ada kontak pada kategori ini",
+                            fontSize = 14.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(
+                        items = filteredContacts,
+                        key = { it.id }
+                    ) { contact ->
+                        ContactCardItem(
+                            contact = contact,
+                            onClick = { onContactClick(contact) }
+                        )
+                    }
                 }
             }
         }
@@ -177,10 +308,24 @@ fun ContactCardItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isPanitia = contact.contactType == "Panitia Pelaksana"
+    val badgeBg = when (contact.contactType) {
+        "Panitia Pelaksana" -> PrimaryBlueLight
+        "Narasumber" -> BadgeGreenBg
+        "Juri" -> Color(0xFFEDF2FE)
+        else -> BadgeOrangeBg
+    }
+    val badgeText = when (contact.contactType) {
+        "Panitia Pelaksana" -> PrimaryBlue
+        "Narasumber" -> BadgeGreenText
+        "Juri" -> Color(0xFF3B82F6)
+        else -> BadgeOrangeText
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -188,75 +333,87 @@ fun ContactCardItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar Box
+            // Avatar
             Box(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(if (contact.isVip) BadgeOrangeBg else PrimaryBlueLight),
+                    .background(badgeBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Person,
                     contentDescription = contact.name,
-                    tint = if (contact.isVip) BadgeOrangeText else PrimaryBlue,
+                    tint = badgeText,
                     modifier = Modifier.size(24.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            // Name & Division
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            // Info
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
                         text = contact.name,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
-                    if (contact.isVip) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(BadgeOrangeBg)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(text = "VIP", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BadgeOrangeText)
-                        }
+
+                    // Badge Kategori
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(badgeBg)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = contact.contactType,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = badgeText
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(2.dp))
 
+                // Baris kedua: Subtitle (Divisi & Role / Instansi & Role)
+                val subtitle = if (isPanitia) {
+                    "${contact.division ?: ""} • ${contact.role}"
+                } else {
+                    "${contact.role} ${if (!contact.institution.isNullOrBlank()) "(${contact.institution})" else ""}"
+                }
+
                 Text(
-                    text = "${contact.division} · ${contact.role}",
-                    fontSize = 13.sp,
+                    text = subtitle,
+                    fontSize = 12.sp,
                     color = TextSecondary
                 )
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                Text(
-                    text = contact.phone,
-                    fontSize = 12.sp,
-                    color = PrimaryBlue,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            IconButton(onClick = {}) {
-                Icon(
-                    imageVector = Icons.Outlined.Phone,
-                    contentDescription = "Telepon",
-                    tint = PrimaryBlue
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.Phone,
+                        contentDescription = "Telepon",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = contact.phone,
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                }
             }
         }
     }

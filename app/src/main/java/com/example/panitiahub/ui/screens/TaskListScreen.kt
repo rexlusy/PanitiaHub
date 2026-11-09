@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +47,8 @@ import com.example.panitiahub.data.SampleTaskData
 import com.example.panitiahub.data.TaskItem
 import com.example.panitiahub.ui.components.AppBottomNavigationBar
 import com.example.panitiahub.ui.theme.AppBackground
+import com.example.panitiahub.ui.theme.BadgeSkyBg
+import com.example.panitiahub.ui.theme.BadgeSkyText
 import com.example.panitiahub.ui.theme.CardBackground
 import com.example.panitiahub.ui.theme.PanitiaHubTheme
 import com.example.panitiahub.ui.theme.PrimaryBlue
@@ -54,6 +57,10 @@ import com.example.panitiahub.ui.theme.TextSecondary
 import com.example.panitiahub.ui.theme.UnselectedTabBg
 import com.example.panitiahub.ui.theme.UnselectedTabText
 
+enum class TaskFilterOption {
+    ALL, MY_TASKS, PENDING, COMPLETED
+}
+
 @Composable
 fun TaskListScreen(
     tasks: List<TaskItem>,
@@ -61,19 +68,23 @@ fun TaskListScreen(
     onToggleTaskCompleted: (TaskItem) -> Unit,
     onAddTaskClick: () -> Unit,
     onNavigateRoute: (String) -> Unit,
+    currentUserName: String = "Dimas Aditya",
     modifier: Modifier = Modifier
 ) {
-    var selectedFilterCompleted by remember { mutableStateOf<Boolean?>(null) } // null = Semua, false = Belum Selesai, true = Selesai
+    var selectedFilter by remember { mutableStateOf(TaskFilterOption.ALL) }
 
-    val filteredTasks = when (selectedFilterCompleted) {
-        true -> tasks.filter { it.isCompleted }
-        false -> tasks.filter { !it.isCompleted }
-        null -> tasks
-    }
-
+    val myTasksCount = tasks.count { it.picName.equals(currentUserName, ignoreCase = true) }
     val completedCount = tasks.count { it.isCompleted }
     val totalCount = tasks.size
+    val pendingCount = totalCount - completedCount
     val progressPercent = if (totalCount > 0) (completedCount.toFloat() / totalCount) else 0f
+
+    val filteredTasks = when (selectedFilter) {
+        TaskFilterOption.ALL -> tasks
+        TaskFilterOption.MY_TASKS -> tasks.filter { it.picName.equals(currentUserName, ignoreCase = true) }
+        TaskFilterOption.PENDING -> tasks.filter { !it.isCompleted }
+        TaskFilterOption.COMPLETED -> tasks.filter { it.isCompleted }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -119,8 +130,8 @@ fun TaskListScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Tugas jelas, eksekusi tuntas.",
-                fontSize = 14.sp,
+                text = "Tugas jelas, koordinasi tuntas",
+                fontSize = 13.sp,
                 color = TextSecondary
             )
 
@@ -144,7 +155,7 @@ fun TaskListScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Progres Pengerjaan Tugas",
+                            text = "Progres Pengerjaan Acara",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color.White.copy(alpha = 0.9f)
@@ -188,43 +199,78 @@ fun TaskListScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Filter Tabs
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Filter Tabs (LazyRow: Semua, Tugas Saya, Belum Selesai, Selesai)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                FilterTabItem(
-                    title = "Semua ($totalCount)",
-                    isSelected = selectedFilterCompleted == null,
-                    onClick = { selectedFilterCompleted = null }
-                )
-                FilterTabItem(
-                    title = "Belum Selesai (${totalCount - completedCount})",
-                    isSelected = selectedFilterCompleted == false,
-                    onClick = { selectedFilterCompleted = false }
-                )
-                FilterTabItem(
-                    title = "Selesai ($completedCount)",
-                    isSelected = selectedFilterCompleted == true,
-                    onClick = { selectedFilterCompleted = true }
-                )
+                item {
+                    FilterTabItem(
+                        title = "Semua ($totalCount)",
+                        isSelected = selectedFilter == TaskFilterOption.ALL,
+                        onClick = { selectedFilter = TaskFilterOption.ALL }
+                    )
+                }
+                item {
+                    FilterTabItem(
+                        title = "Tugas Saya ($myTasksCount)",
+                        isSelected = selectedFilter == TaskFilterOption.MY_TASKS,
+                        onClick = { selectedFilter = TaskFilterOption.MY_TASKS }
+                    )
+                }
+                item {
+                    FilterTabItem(
+                        title = "Belum Selesai ($pendingCount)",
+                        isSelected = selectedFilter == TaskFilterOption.PENDING,
+                        onClick = { selectedFilter = TaskFilterOption.PENDING }
+                    )
+                }
+                item {
+                    FilterTabItem(
+                        title = "Selesai ($completedCount)",
+                        isSelected = selectedFilter == TaskFilterOption.COMPLETED,
+                        onClick = { selectedFilter = TaskFilterOption.COMPLETED }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Task Items List
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(
-                    items = filteredTasks,
-                    key = { it.id }
-                ) { task ->
-                    TaskCardItem(
-                        task = task,
-                        onCardClick = { onTaskClick(task) },
-                        onToggleClick = { onToggleTaskCompleted(task) }
+            if (filteredTasks.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (selectedFilter == TaskFilterOption.MY_TASKS) {
+                            "Belum ada tugas yang ditugaskan ke Anda ($currentUserName)"
+                        } else {
+                            "Tidak ada tugas pada filter ini"
+                        },
+                        fontSize = 14.sp,
+                        color = TextSecondary
                     )
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(
+                        items = filteredTasks,
+                        key = { it.id }
+                    ) { task ->
+                        val isAssignedToMe = task.picName.equals(currentUserName, ignoreCase = true)
+                        TaskCardItem(
+                            task = task,
+                            isAssignedToMe = isAssignedToMe,
+                            onCardClick = { onTaskClick(task) },
+                            onToggleClick = { onToggleTaskCompleted(task) }
+                        )
+                    }
                 }
             }
         }
@@ -256,6 +302,7 @@ private fun FilterTabItem(
 @Composable
 fun TaskCardItem(
     task: TaskItem,
+    isAssignedToMe: Boolean = false,
     onCardClick: () -> Unit,
     onToggleClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -288,19 +335,41 @@ fun TaskCardItem(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = task.title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = task.title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    if (isAssignedToMe) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(BadgeSkyBg)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Tugas Anda",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BadgeSkyText
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
-                    text = "${task.division} · PIC: ${task.picName}",
+                    text = "${task.division} • PIC: ${task.picName}",
                     fontSize = 13.sp,
                     color = TextSecondary
                 )
+
                 Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
                     text = "Tenggat: ${task.dueDate}",
                     fontSize = 12.sp,

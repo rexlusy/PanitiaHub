@@ -9,6 +9,12 @@ val PrimaryBlueHover = Color(0xFF4345D8)
 val BadgeOrangeBg = Color(0xFFFFF0E6)
 val BadgeOrangeText = Color(0xFFD96B27)
 
+val BadgeGreenBg = Color(0xFFEAF8F0)
+val BadgeGreenText = Color(0xFF10B981)
+
+val BadgeSkyBg = Color(0xFFEDF2FE)
+val BadgeSkyText = Color(0xFF3B82F6)
+
 val WarningOrangeBg = Color(0xFFFFF0E5)
 val WarningOrangeText = Color(0xFFB45309)
 

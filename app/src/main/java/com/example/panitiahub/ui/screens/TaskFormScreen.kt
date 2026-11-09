@@ -1,20 +1,27 @@
 package com.example.panitiahub.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -48,12 +56,20 @@ import com.example.panitiahub.ui.theme.TextSecondary
 fun TaskFormScreen(
     onBackClick: () -> Unit,
     onSubmit: (TaskItem) -> Unit,
+    availableCommitteeMembers: List<String> = listOf("Dimas Aditya", "Nadia Putri", "Hania Putri", "Rizky Ramadhan"),
+    availableDivisions: List<String> = listOf("Sie Acara", "Sie Perlengkapan", "Sie Keamanan", "Sie Konsumsi", "Sie Humas"),
     modifier: Modifier = Modifier
 ) {
     var title by remember { mutableStateOf("") }
-    var division by remember { mutableStateOf("") }
-    var picName by remember { mutableStateOf("") }
-    var dueDate by remember { mutableStateOf("03 Nov · 18.00 WIB") }
+    var selectedDivision by remember { mutableStateOf(availableDivisions.firstOrNull() ?: "Sie Acara") }
+    var isDivisionDropdownExpanded by remember { mutableStateOf(false) }
+
+    var selectedPic by remember { mutableStateOf(availableCommitteeMembers.firstOrNull() ?: "Dimas Aditya") }
+    var isCustomPic by remember { mutableStateOf(false) }
+    var customPicName by remember { mutableStateOf("") }
+    var isPicDropdownExpanded by remember { mutableStateOf(false) }
+
+    var dueDate by remember { mutableStateOf("03 Nov • 18.00 WIB") }
     var description by remember { mutableStateOf("") }
 
     val textFieldShape = RoundedCornerShape(14.dp)
@@ -102,18 +118,22 @@ fun TaskFormScreen(
             ) {
                 Button(
                     onClick = {
-                        val titleToUse = title.ifEmpty { "Checklist Sound System & HT" }
-                        val divToUse = division.ifEmpty { "Sie Perlengkapan" }
-                        val picToUse = picName.ifEmpty { "Nadia Putri" }
-                        val descToUse = description.ifEmpty { "Pastikan semua perlengkapan dan teknis siap sebelum gladi bersih." }
+                        val titleToUse = title.ifEmpty { "Tugas Baru" }
+                        val divToUse = selectedDivision.ifEmpty { "Sie Acara" }
+                        val picToUse = if (isCustomPic) {
+                            customPicName.ifEmpty { "Panitia Lapangan" }
+                        } else {
+                            selectedPic
+                        }
+                        val descToUse = description.ifEmpty { "Pastikan tugas ini dikoordinasikan dengan baik." }
 
                         val newTask = TaskItem(
                             title = titleToUse,
                             division = divToUse,
                             picName = picToUse,
                             dueDate = dueDate,
-                            description = descToUse,
-                            isCompleted = false
+                            isCompleted = false,
+                            description = descToUse
                         )
                         onSubmit(newTask)
                     },
@@ -145,7 +165,7 @@ fun TaskFormScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Buat tugas & penanggung jawab",
+                text = "Rincian Tugas & Penanggung Jawab",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -154,7 +174,7 @@ fun TaskFormScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Pastikan setiap tugas memiliki divisi & PIC yang jelas.",
+                text = "Tugas akan otomatis terhubung ke PIC dan modul Kontak.",
                 fontSize = 14.sp,
                 color = TextSecondary
             )
@@ -162,7 +182,7 @@ fun TaskFormScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             // Judul Tugas
-            Text(text = "Judul Tugas / Checklist", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            Text(text = "Nama / Judul Tugas", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Spacer(modifier = Modifier.height(6.dp))
             OutlinedTextField(
                 value = title,
@@ -176,42 +196,123 @@ fun TaskFormScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Divisi
+            // Divisi Penanggung Jawab (Dropdown)
             Text(text = "Divisi Penanggung Jawab", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                value = division,
-                onValueChange = { division = it },
-                placeholder = { Text("Contoh: Sie Perlengkapan / Sie Acara", fontSize = 14.sp, color = TextSecondary) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = textFieldShape,
-                colors = customTextFieldColors,
-                singleLine = true
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = selectedDivision,
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { isDivisionDropdownExpanded = !isDivisionDropdownExpanded }) {
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Pilih Divisi")
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isDivisionDropdownExpanded = true },
+                    shape = textFieldShape,
+                    colors = customTextFieldColors
+                )
+
+                DropdownMenu(
+                    expanded = isDivisionDropdownExpanded,
+                    onDismissRequest = { isDivisionDropdownExpanded = false },
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .background(Color.White)
+                ) {
+                    availableDivisions.forEach { div ->
+                        DropdownMenuItem(
+                            text = { Text(div, fontSize = 14.sp) },
+                            onClick = {
+                                selectedDivision = div
+                                isDivisionDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // PIC Name
-            Text(text = "Nama Penanggung Jawab (PIC)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            // PIC Panitia (Dropdown dari Modul Kontak)
+            Text(text = "PIC / Penanggung Jawab (Dari Direktori Kontak)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                value = picName,
-                onValueChange = { picName = it },
-                placeholder = { Text("Contoh: Nadia Putri", fontSize = 14.sp, color = TextSecondary) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = textFieldShape,
-                colors = customTextFieldColors,
-                singleLine = true
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = if (isCustomPic) "Ketik PIC Lainnya..." else selectedPic,
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { isPicDropdownExpanded = !isPicDropdownExpanded }) {
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Pilih PIC")
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isPicDropdownExpanded = true },
+                    shape = textFieldShape,
+                    colors = customTextFieldColors
+                )
+
+                DropdownMenu(
+                    expanded = isPicDropdownExpanded,
+                    onDismissRequest = { isPicDropdownExpanded = false },
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .background(Color.White)
+                ) {
+                    availableCommitteeMembers.distinct().forEach { name ->
+                        DropdownMenuItem(
+                            text = { Text(name, fontSize = 14.sp) },
+                            onClick = {
+                                selectedPic = name
+                                isCustomPic = false
+                                isPicDropdownExpanded = false
+                            }
+                        )
+                    }
+
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.size(8.dp))
+                                Text("+ Ketik PIC Lainnya...", fontSize = 14.sp, color = PrimaryBlue, fontWeight = FontWeight.SemiBold)
+                            }
+                        },
+                        onClick = {
+                            isCustomPic = true
+                            isPicDropdownExpanded = false
+                        }
+                    )
+                }
+            }
+
+            if (isCustomPic) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = customPicName,
+                    onValueChange = { customPicName = it },
+                    placeholder = { Text("Ketik nama PIC penanggung jawab", fontSize = 14.sp, color = TextSecondary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = textFieldShape,
+                    colors = customTextFieldColors,
+                    singleLine = true
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Tenggat Waktu
-            Text(text = "Tenggat Waktu (Deadline)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            Text(text = "Tenggat Waktu / Deadline", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Spacer(modifier = Modifier.height(6.dp))
             OutlinedTextField(
                 value = dueDate,
                 onValueChange = { dueDate = it },
+                placeholder = { Text("Contoh: 03 Nov • 18.00 WIB", fontSize = 14.sp, color = TextSecondary) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = textFieldShape,
                 colors = customTextFieldColors,
@@ -220,17 +321,19 @@ fun TaskFormScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Deskripsi / Catatan Tambahan
-            Text(text = "Deskripsi / Instruksi Tugas", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            // Deskripsi Instruksi
+            Text(text = "Catatan & Deskripsi Tugas", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Spacer(modifier = Modifier.height(6.dp))
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                placeholder = { Text("Tulis instruksi khusus pengerjaan...", fontSize = 14.sp, color = TextSecondary) },
-                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Rincian instruksi yang harus dipersiapkan...", fontSize = 14.sp, color = TextSecondary) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp),
                 shape = textFieldShape,
                 colors = customTextFieldColors,
-                minLines = 3
+                maxLines = 4
             )
 
             Spacer(modifier = Modifier.height(24.dp))
